@@ -6,20 +6,24 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		%sveltekit.head%
 		<style>
-			.donate-button {
-				position: fixed;
-				left: 50%;
-				bottom: 0;
-				transform: translateX(-50%);
-				margin-bottom: 20px; /* Adds a little space above the bottom of the screen */
+			/* Style to center the button */
+			body {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				height: 100vh;
+				margin: 0;
+			}
+			form {
+				text-align: center;
 			}
 		</style>
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
 
-		<!-- PayPal Donation Button -->
-		<form class="donate-button" action="https://www.paypal.com/donate" method="post" target="_top">
+		<!-- Centered PayPal Donation Button -->
+		<form action="https://www.paypal.com/donate" method="post" target="_top">
 			<input type="hidden" name="business" value="Y2YEB5AMZZCH8" />
 			<input type="hidden" name="no_recurring" value="0" />
 			<input type="hidden" name="currency_code" value="USD" />
