@@ -49,9 +49,11 @@
         return;
       }
 
+      const userQuestion = question.trim(); // Store the question
       isLoading = true;
       answer = '';
-      messages.push({ type: 'user', text: question });
+      messages = [...messages, { type: 'user', text: userQuestion }];
+      question = ''; // Clear the input box immediately
       console.log('Messages after user input:', messages);
 
       try {
@@ -61,7 +63,7 @@
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            message: question,
+            message: userQuestion,
             documentId: selectedDocument.id,
           }),
         });
@@ -74,88 +76,96 @@
 
         const data = await response.json();
         console.log('Received data:', data);
-        messages.push({ type: 'bot', text: data.response });
+
+        messages = [...messages, { type: 'bot', text: data.response }];
         console.log('Messages after bot response:', messages);
       } catch (error) {
         console.error('Error fetching answer:', error);
-        messages.push({ type: 'bot', text: 'Sorry, there was an error fetching the answer. Please try again.' });
+        messages = [...messages, { type: 'bot', text: 'Sorry, there was an error fetching the answer. Please try again.' }];
       } finally {
         isLoading = false;
-        question = '';
       }
     }
   }
 </script>
 
-<div class="h-screen bg-gray-900 flex">
-  <!-- Smaller left-hand scrollable column with document list -->
-  <div class="w-1/5 bg-gray-800 p-4 overflow-y-auto h-full">
-    <h2 class="text-xl font-bold mb-4 text-gray-100">Documents</h2>
-    <ul>
-      {#each documents as document}
-        <li class="mb-2">
-          <button
-            type="button"
-            class="w-full p-2 rounded-lg bg-gray-700 text-gray-200 shadow hover:bg-gray-600 transition"
-            on:click={() => selectDocument(document.id)}
-          >
-            {document.title}
-          </button>
-        </li>
-      {/each}
-    </ul>
-    {#if documents.length === 0}
-      <p class="text-gray-400">Loading documents...</p>
+<div class="h-screen bg-gray-900 flex flex-col">
+  <!-- Header -->
+  <header class="bg-gray-800 text-gray-100 p-4 flex-shrink-0">
+    <h1 class="text-3xl font-bold">UsPolicy.io</h1>
+    {#if selectedDocument}
+      <h2 class="text-xl mt-1">{selectedDocument.title}</h2>
     {/if}
-  </div>
+  </header>
 
-  <!-- Main content area -->
-  <div class="w-4/5 bg-gray-900 p-8 flex flex-col h-full">
-    {#if showLandingPage}
-      <div class="flex flex-col flex-grow justify-center items-center">
-        <h1 class="text-4xl font-bold text-center text-gray-100 mb-4 flex items-center">
-          Welcome to UsPolicy.io!
-          <span class="ml-3 px-2 py-1 bg-indigo-600 text-white text-sm font-semibold rounded-full animate-pulse">
-            Beta
-          </span>
-        </h1>
-        <p class="text-lg text-center text-gray-300 mb-4">
-          Select a document from the left to start asking questions.
-          <br>
-          All answers are solely from the selected document.
-        </p>
-      </div>
-    {:else if selectedDocument}
-      <h1 class="text-3xl font-bold text-center text-gray-100 mb-8">
-        {selectedDocument.title}
-      </h1>
-
-      <div class="flex-1 overflow-y-auto mb-4">
-        {#each messages as message}
-          <div class={message.type === 'user' ? 'text-right' : 'text-left'}>
-            <div class={`inline-block p-2 m-2 rounded-lg max-w-xl ${message.type === 'user' ? 'bg-blue-700 text-white' : 'bg-gray-700 text-gray-200'}`}>
-              {message.text}
-            </div>
-          </div>
+  <div class="flex flex-grow overflow-hidden">
+    <!-- Smaller left-hand scrollable column with document list -->
+    <div class="w-1/5 bg-gray-800 p-4 overflow-y-auto h-full">
+      <h2 class="text-xl font-bold mb-4 text-gray-100">Documents</h2>
+      <ul>
+        {#each documents as document}
+          <li class="mb-2">
+            <button
+              type="button"
+              class="w-full p-2 rounded-lg bg-gray-700 text-gray-200 shadow hover:bg-gray-600 transition"
+              on:click={() => selectDocument(document.id)}
+            >
+              {document.title}
+            </button>
+          </li>
         {/each}
-      </div>
+      </ul>
+      {#if documents.length === 0}
+        <p class="text-gray-400">Loading documents...</p>
+      {/if}
+    </div>
 
-      <form on:submit={handleSubmit} class="flex">
-        <input
-          type="text"
-          bind:value={question}
-          placeholder="Enter your question here..."
-          class="flex-1 p-4 bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 text-lg placeholder-gray-500"
-        />
-        <button type="submit" disabled={isLoading} class="ml-2 bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-          {#if isLoading}
-            <div class="spinner"></div>
-          {:else}
-            <Send size={24} />
-          {/if}
-        </button>
-      </form>
-    {/if}
+    <!-- Main content area -->
+    <div class="w-4/5 bg-gray-900 p-8 flex flex-col h-full">
+      {#if showLandingPage}
+        <div class="flex flex-col flex-grow justify-center items-center">
+          <h2 class="text-4xl font-bold text-center text-gray-100 mb-4 flex items-center">
+            Welcome to UsPolicy.io!
+            <span class="ml-3 px-2 py-1 bg-indigo-600 text-white text-sm font-semibold rounded-full animate-pulse">
+              Beta
+            </span>
+          </h2>
+          <p class="text-lg text-center text-gray-300 mb-4">
+            Select a document from the left to start asking questions.
+            <br>
+            All answers are solely from the selected document.
+          </p>
+        </div>
+      {:else if selectedDocument}
+        <!-- Chat messages -->
+        <div class="flex-1 overflow-y-auto mb-4">
+          {#each messages as message}
+            <div class={message.type === 'user' ? 'text-right' : 'text-left'}>
+              <div class={`inline-block p-2 m-2 rounded-lg max-w-xl ${message.type === 'user' ? 'bg-blue-700 text-white' : 'bg-gray-700 text-gray-200'}`}>
+                {message.text}
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <!-- Input form -->
+        <form on:submit={handleSubmit} class="flex">
+          <input
+            type="text"
+            bind:value={question}
+            placeholder="Enter your question here..."
+            class="flex-1 p-4 bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 text-lg placeholder-gray-500"
+          />
+          <button type="submit" disabled={isLoading} class="ml-2 bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+            {#if isLoading}
+              <div class="spinner"></div>
+            {:else}
+              <Send size={24} />
+            {/if}
+          </button>
+        </form>
+      {/if}
+    </div>
   </div>
 </div>
 

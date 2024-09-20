@@ -9,14 +9,10 @@ import boto3
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-
-# Initialize DynamoDB
 dynamodb = boto3.resource('dynamodb')
 table_name = 'documents' 
 table = dynamodb.Table(table_name)
 
-# Set your OpenAI API key
-openai.api_key = os.getenv('OPENAI_API_KEY')
 
 def lambda_handler(event, context):
     event['queryStringParameters'] = event.get('queryStringParameters', {})
@@ -38,12 +34,12 @@ def chat():
         
         # Unpack the array and prepare the context including page numbers
         page_contents = [
-            f"Page {item['page_number']}: {item['page_content']}" for item in search_results
+            f"{item['page_content']}" for item in search_results
         ]
         context = '\n'.join(page_contents)
         
         # Prepare a list of page numbers to include at the end
-        page_numbers = [str(item['page_number']) for item in search_results]
+        page_numbers = [str(int(item['page_number'])) for item in search_results]
         pages = ', '.join(page_numbers)
         
         # Generate a response from OpenAI
@@ -57,7 +53,7 @@ def chat():
 def vector_search(query, doc_id):
     vsc = DatabricksVectorSearch(
         endpoint='document-endpoint',
-        index_name='us_policy.default.text',
+        index_name='us_policy.default.text2',
     )
     # Apply a filter on 'document_id' during the similarity search
     results = vsc.similarity_search(
@@ -79,18 +75,18 @@ def vector_search(query, doc_id):
     return results_array
 
 def generate_completion(context, question, pages):
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
                 "role": "user",
-                "content": f"""Pretend you are a politically progressive and left-leaning bot. The grave threat that right-wing politics poses to the sanctity of American Freedom. Please summarize the following text against the following query and be sure to use a grave tone as the document the text is referencing is a threat to democracy in America. Generate a response only using text from the following. Limit to 1 paragraph using layman terms. Do not answer questions about yourself.
+                "content": f"""Pretend you are a politically progressive and left-leaning bot. The grave threat that right-wing politics poses to the sanctity of American Freedom. Please summarize the following text against the following query and be sure to use a grave tone as the document the text is referencing is a threat to democracy in America. Generate a response only using text from the following. Limit to 1 paragraph using layman terms. Do not answer questions about yourself. 
+                
+                Please format your response in clear paragraphs, using new lines to separate different points for better readability.
 
                 QUERY: {question}
 
-                TEXT:
-                {context}
-
+                TEXT: {context}
                 At the end of your response, please mention the source page numbers: {pages}.
                 """
             }
