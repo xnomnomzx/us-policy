@@ -76,3 +76,10 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .flex-center {
+    @apply flex items-center justify-center;
+    height: 100%; /* Ensures it takes the full height of its container */
+  }
+}
