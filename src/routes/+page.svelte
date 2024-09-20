@@ -1,6 +1,8 @@
 <script>
   import { onMount } from 'svelte';
   import { Send } from 'lucide-svelte';
+  import { marked } from 'marked';
+  import DOMPurify from 'dompurify';
 
   let documents = [];
   let selectedDocument = null;
@@ -16,14 +18,19 @@
 
   async function fetchDocuments() {
     try {
-      const response = await fetch('https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/documents', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
+      const response = await fetch(
+        'https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/documents',
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
         }
-      });
+      );
       if (!response.ok) {
-        throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch documents: ${response.status} ${response.statusText}`
+        );
       }
       documents = await response.json();
       console.log('Documents:', documents);
@@ -33,7 +40,7 @@
   }
 
   function selectDocument(id) {
-    selectedDocument = documents.find(doc => doc.id === id);
+    selectedDocument = documents.find((doc) => doc.id === id);
     question = '';
     answer = '';
     showLandingPage = false;
@@ -57,21 +64,26 @@
       console.log('Messages after user input:', messages);
 
       try {
-        const response = await fetch('https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: userQuestion,
-            documentId: selectedDocument.id,
-          }),
-        });
+        const response = await fetch(
+          'https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/chat',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: userQuestion,
+              documentId: selectedDocument.id
+            })
+          }
+        );
 
         console.log('Response status:', response.status);
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch answer: ${response.status} ${response.statusText}`);
+          throw new Error(
+            `Failed to fetch answer: ${response.status} ${response.statusText}`
+          );
         }
 
         const data = await response.json();
@@ -81,11 +93,41 @@
         console.log('Messages after bot response:', messages);
       } catch (error) {
         console.error('Error fetching answer:', error);
-        messages = [...messages, { type: 'bot', text: 'Sorry, there was an error fetching the answer. Please try again.' }];
+        messages = [
+          ...messages,
+          {
+            type: 'bot',
+            text: 'Sorry, there was an error fetching the answer. Please try again.'
+          }
+        ];
       } finally {
         isLoading = false;
       }
     }
+  }
+
+  function parseAssistantResponse(text) {
+    // Split the response into main content and source pages
+    const [content, pagesLine] = text.split('Source page numbers:');
+    let sanitizedContent = DOMPurify.sanitize(marked.parse(content.trim()));
+
+    if (pagesLine && selectedDocument && selectedDocument.source_url) {
+      // Extract page numbers from the pagesLine
+      const pagesText = pagesLine.trim().replace(/[\[\]]/g, '');
+      const pageNumbers = pagesText.split(',').map((num) => num.trim());
+
+      // Construct hyperlinks for each page number
+      const pageLinks = pageNumbers.map((page) => {
+        const url = `${selectedDocument.source_url}#page=${page}`;
+        return `<a href="${url}" target="_blank">Page ${page}</a>`;
+      });
+
+      // Append the hyperlinks to the sanitized content
+      const pagesHtml = `<p>Source pages: ${pageLinks.join(', ')}</p>`;
+      sanitizedContent += pagesHtml;
+    }
+
+    return sanitizedContent;
   }
 </script>
 
@@ -126,13 +168,15 @@
         <div class="flex flex-col flex-grow justify-center items-center">
           <h2 class="text-4xl font-bold text-center text-gray-100 mb-4 flex items-center">
             Welcome to UsPolicy.io!
-            <span class="ml-3 px-2 py-1 bg-indigo-600 text-white text-sm font-semibold rounded-full animate-pulse">
+            <span
+              class="ml-3 px-2 py-1 bg-indigo-600 text-white text-sm font-semibold rounded-full animate-pulse"
+            >
               Beta
             </span>
           </h2>
           <p class="text-lg text-center text-gray-300 mb-4">
             Select a document from the left to start asking questions.
-            <br>
+            <br />
             All answers are solely from the selected document.
           </p>
         </div>
@@ -141,8 +185,19 @@
         <div class="flex-1 overflow-y-auto mb-4">
           {#each messages as message}
             <div class={message.type === 'user' ? 'text-right' : 'text-left'}>
-              <div class={`inline-block p-2 m-2 rounded-lg max-w-xl ${message.type === 'user' ? 'bg-blue-700 text-white' : 'bg-gray-700 text-gray-200'}`}>
-                {message.text}
+              <div
+                class={`inline-block p-2 m-2 rounded-lg max-w-xl ${
+                  message.type === 'user'
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-gray-700 text-gray-200 bot-message'
+                }`}
+                style="white-space: pre-wrap;"
+              >
+                {#if message.type === 'bot'}
+                  {@html parseAssistantResponse(message.text)}
+                {:else}
+                  {message.text}
+                {/if}
               </div>
             </div>
           {/each}
@@ -158,9 +213,13 @@
             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
             transition-all duration-300 text-lg placeholder-gray-500"
           />
-          <button type="submit" disabled={isLoading} class="ml-2 bg-indigo-600 text-white p-2 
-          rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 
-          focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button
+            type="submit"
+            disabled={isLoading}
+            class="ml-2 bg-indigo-600 text-white p-2 
+            rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 
+            focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {#if isLoading}
               <div class="spinner"></div>
             {:else}
@@ -174,6 +233,16 @@
 </div>
 
 <style>
+  /* Styles for hyperlinks in bot messages */
+  :global(.bot-message a) {
+    color: #1e90ff; /* DodgerBlue */
+    text-decoration: underline;
+  }
+
+  :global(.bot-message a:hover) {
+    color: #104e8b; /* Darker blue on hover */
+  }
+
   .spinner {
     border: 4px solid rgba(255, 255, 255, 0.1);
     border-left-color: #6366f1; /* Indigo color */
