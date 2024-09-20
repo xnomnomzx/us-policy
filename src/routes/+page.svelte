@@ -40,39 +40,6 @@
     messages = [];
     console.log('Selected document:', selectedDocument);
   }
-  let showLandingPage = true;
-  let messages = [];
-
-  onMount(async () => {
-    await fetchDocuments();
-  });
-
-  async function fetchDocuments() {
-    try {
-      const response = await fetch('https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/documents', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
-      }
-      documents = await response.json();
-      console.log('Documents:', documents);
-    } catch (error) {
-      console.error('Error fetching documents:', error);
-    }
-  }
-
-  function selectDocument(id) {
-    selectedDocument = documents.find(doc => doc.id === id);
-    question = '';
-    answer = '';
-    showLandingPage = false;
-    messages = [];
-    console.log('Selected document:', selectedDocument);
-  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -87,9 +54,6 @@
       answer = '';
       messages = [...messages, { type: 'user', text: userQuestion }];
       question = '';
-      console.log('Messages after user input:', messages);
-      messages = [...messages, { type: 'user', text: userQuestion }];
-      question = ''; // Clear the input box immediately
       console.log('Messages after user input:', messages);
 
       try {
@@ -106,10 +70,7 @@
 
         console.log('Response status:', response.status);
 
-        console.log('Response status:', response.status);
-
         if (!response.ok) {
-          throw new Error(`Failed to fetch answer: ${response.status} ${response.statusText}`);
           throw new Error(`Failed to fetch answer: ${response.status} ${response.statusText}`);
         }
 
@@ -118,13 +79,8 @@
 
         messages = [...messages, { type: 'bot', text: data.response }];
         console.log('Messages after bot response:', messages);
-        console.log('Received data:', data);
-
-        messages = [...messages, { type: 'bot', text: data.response }];
-        console.log('Messages after bot response:', messages);
       } catch (error) {
         console.error('Error fetching answer:', error);
-        messages = [...messages, { type: 'bot', text: 'Sorry, there was an error fetching the answer. Please try again.' }];
         messages = [...messages, { type: 'bot', text: 'Sorry, there was an error fetching the answer. Please try again.' }];
       } finally {
         isLoading = false;
@@ -143,7 +99,7 @@
   </header>
 
   <div class="flex flex-grow overflow-hidden">
-    <!-- Smaller left-hand scrollable column with document list -->
+    <!-- Sidebar -->
     <div class="w-1/5 bg-gray-800 p-4 overflow-y-auto h-full">
       <h2 class="text-xl font-bold mb-4 text-gray-100">Documents</h2>
       <ul>
@@ -198,21 +154,13 @@
             type="text"
             bind:value={question}
             placeholder="Enter your question here..."
-            class="flex-1 p-4 bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 text-lg placeholder-gray-500"
+            class="flex-1 p-4 bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-lg 
+            focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
+            transition-all duration-300 text-lg placeholder-gray-500"
           />
-          <button type="submit" disabled={isLoading} class="ml-2 bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-            {#if isLoading}
-              <div class="spinner"></div>
-            {:else}
-              <Send size={24} />
-            {/if}
-          </button>
-        </form>
-      {/if}
-    </div>
-            class="flex-1 p-4 bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 text-lg placeholder-gray-500"
-          />
-          <button type="submit" disabled={isLoading} class="ml-2 bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button type="submit" disabled={isLoading} class="ml-2 bg-indigo-600 text-white p-2 
+          rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 
+          focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
             {#if isLoading}
               <div class="spinner"></div>
             {:else}
@@ -227,7 +175,6 @@
 
 <style>
   .spinner {
-    border: 4px solid rgba(255, 255, 255, 0.1);
     border: 4px solid rgba(255, 255, 255, 0.1);
     border-left-color: #6366f1; /* Indigo color */
     border-radius: 50%;
