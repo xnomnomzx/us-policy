@@ -1,48 +1,18 @@
 <script>
-  import { onMount } from 'svelte';
   import { Send, ArrowRight } from 'lucide-svelte';
-
-  let documents = [];
-  let selectedDocument = null;
   let question = '';
   let answer = '';
   let isLoading = false;
-  let showLandingPage = true; // Track whether to show the landing page
-  let messages = []; // Store chat messages
-
-  onMount(async () => {
-    await fetchDocuments();
-  });
-
-  async function fetchDocuments() {
-    try {
-      const response = await fetch('https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/documents');
-      if (!response.ok) {
-        throw new Error('Failed to fetch documents');
-      }
-      documents = await response.json();
-    } catch (error) {
-      console.error('Error fetching documents:', error);
-    }
-  }
-
-  function selectDocument(id) {
-    selectedDocument = documents.find(doc => doc.id === id);
-    question = ''; // Clear the question when a new document is selected
-    answer = '';   // Clear the previous answer
-    showLandingPage = false; // Hide landing page after document selection
-    messages = []; // Clear previous messages
-  }
 
   async function handleSubmit(event) {
     event.preventDefault();
     if (question.trim()) {
       isLoading = true;
       answer = '';
-      messages.push({ type: 'user', text: question }); // Add user question to messages
 
       try {
-        const response = await fetch('https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/chat', {
+        // Replace with your actual API endpoint
+        const response = await fetch('https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -55,79 +25,60 @@
         }
 
         const data = await response.json();
-        messages.push({ type: 'bot', text: data.response }); // Add bot answer to messages
+        console.log(data); // Debug: Log the entire response
+        // Set the answer from `data.response`
+        answer = data.response;
       } catch (error) {
         console.error('Error fetching answer:', error);
-        messages.push({ type: 'bot', text: 'Sorry, there was an error fetching the answer. Please try again.' });
+        answer = 'Sorry, there was an error fetching the answer. Please try again.';
       } finally {
         isLoading = false;
-        question = ''; // Clear the input after sending
       }
     }
   }
 </script>
 
-<div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-100 flex flex-col">
-  <!-- Smaller left-hand scrollable column with document list -->
-  <div class="w-1/5 bg-gray-100 p-4 overflow-y-auto h-screen">
-    <h2 class="text-xl font-bold mb-4">Documents</h2>
-    <ul>
-      {#each documents as document}
-        <li class="mb-2">
-          <button
-            type="button"
-            class="w-full p-2 rounded-lg bg-white shadow hover:bg-indigo-200 transition"
-            on:click={() => selectDocument(document.id)}
-          >
-            {document.title}
-          </button>
-        </li>
-      {/each}
-    </ul>
-    {#if documents.length === 0}
-      <p class="text-gray-600">Loading documents...</p>
-    {/if}
-  </div>
+<div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-100 flex items-center justify-center p-4">
+  <div class="w-full max-w-3xl bg-white rounded-2xl shadow-2xl p-8 space-y-8 transition-all duration-500 ease-in-out">
+    <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">
+      Ask a Question About Project 2025
+      <span class="block text-lg font-normal text-gray-500 mt-2">Protect American Democracy</span>
+    </h1>
 
-  <!-- Main content area -->
-  <div class="w-4/5 max-w-2xl bg-white rounded-2xl shadow-2xl p-8 flex flex-col">
-    {#if showLandingPage}
-      <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">
-        Welcome to the Document Chat Interface
-      </h1>
-      <p class="text-lg text-center mb-4">
-        Select a document from the left to start asking questions.
-      </p>
-    {:else if selectedDocument}
-      <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">
-        {selectedDocument.title}
-      </h1>
-
-      <div class="flex-1 overflow-y-auto mb-4">
-        {#each messages as message}
-          <div class={message.type === 'user' ? 'text-right' : 'text-left'}>
-            <div class={`p-2 rounded-lg ${message.type === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}>
-              {message.text}
-            </div>
-          </div>
-        {/each}
-      </div>
-
-      <form on:submit={handleSubmit} class="flex">
+    <form on:submit={handleSubmit} class="space-y-4">
+      <div class="relative">
         <input
-          type="text"
-          bind:value={question}
-          placeholder="Enter your question here..."
-          class="flex-1 p-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 text-lg"
+            type="text"
+            bind:value={question}
+            placeholder="Enter your question here..."
+            class="w-full p-4 pr-12 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 text-lg"
         />
-        <button type="submit" disabled={isLoading} class="ml-2 bg-indigo-500 text-white p-2 rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-700 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+        <button type="submit" disabled={isLoading} class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-indigo-500 text-white p-2 rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-700 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
           {#if isLoading}
             <div class="spinner"></div>
           {:else}
             <Send size={24} />
           {/if}
         </button>
-      </form>
+      </div>
+    </form>
+
+    {#if isLoading}
+      <div class="space-y-3 animate-pulse">
+        <div class="h-4 bg-gray-200 rounded"></div>
+        <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+        <div class="h-4 bg-gray-200 rounded w-4/6"></div>
+      </div>
+    {/if}
+
+    {#if answer && !isLoading}
+      <div class="bg-gradient-to-r from-indigo-50 to-cyan-50 p-6 rounded-lg shadow-inner transition-all duration-500 ease-in-out animate-fadeIn">
+        <h2 class="text-xl font-semibold mb-4 flex items-center text-indigo-700">
+          <ArrowRight class="mr-2" size={24} />
+          Answer
+        </h2>
+        <p class="text-gray-700 leading-relaxed text-lg">{answer}</p>
+      </div>
     {/if}
   </div>
 </div>
