@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { Send, ArrowRight } from 'lucide-svelte';
+  import { Send } from 'lucide-svelte';
 
   let documents = [];
   let selectedDocument = null;
@@ -90,14 +90,16 @@
   </div>
 
   <!-- Main content area -->
-  <div class="w-4/5 max-w-2xl bg-white rounded-2xl shadow-2xl p-8 flex flex-col">
+  <div class="w-4/5 max-w-2xl bg-white rounded-2xl shadow-2xl p-8 flex flex-col flex-1">
     {#if showLandingPage}
-      <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">
-        Welcome to the Document Chat Interface
-      </h1>
-      <p class="text-lg text-center mb-4">
-        Select a document from the left to start asking questions.
-      </p>
+      <div class="flex flex-col flex-grow justify-center items-center">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-4">
+          Welcome to the Document Chat Interface
+        </h1>
+        <p class="text-lg text-center mb-4">
+          Select a document from the left to start asking questions.
+        </p>
+      </div>
     {:else if selectedDocument}
       <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">
         {selectedDocument.title}

@@ -2,10 +2,12 @@ import os
 from langchain_databricks.vectorstores import DatabricksVectorSearch
 import openai
 from flask import Flask, jsonify, request
+from flask_cors import CORS 
 import awsgi
 import boto3
 
 app = Flask(__name__)
+CORS(app)
 dynamodb = boto3.resource('dynamodb')
 table_name = 'documents' 
 table = dynamodb.Table(table_name)
@@ -84,7 +86,6 @@ def get_documents():
         # Convert the DynamoDB items into the desired JSON format
         documents_json = [{"id": item.get('id'), "title": item.get('document_name'), "source_url": item.get('url')} for item in documents_list]
         
-        # Return the documents as JSON
         return jsonify(documents_json)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

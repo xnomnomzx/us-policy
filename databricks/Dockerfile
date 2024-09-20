@@ -2,7 +2,7 @@ FROM public.ecr.aws/lambda/python:3.11
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
-RUN pip install databricks-vectorsearch==0.40 openai==1.35.3 flask langchain-databricks aws-wsgi boto3
+RUN pip install databricks-vectorsearch==0.40 openai==1.35.3 flask langchain-databricks aws-wsgi boto3 Flask-Cors
 
 COPY lambda_function.py ${LAMBDA_TASK_ROOT}
 
