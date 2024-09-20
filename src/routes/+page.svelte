@@ -57,7 +57,8 @@
       console.log('Messages after user input:', messages);
 
       try {
-        const response = await fetch('https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/chat', {
+        // Replace with your actual API endpoint
+        const response = await fetch('https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
