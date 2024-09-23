@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { Send } from 'lucide-svelte';
   import { marked } from 'marked';
-  import DOMPurify from 'dompurify';
 
   let documents = [];
   let selectedDocument = null;
@@ -11,6 +10,7 @@
   let isLoading = false;
   let showLandingPage = true;
   let messages = [];
+  let chatContainer;
 
   onMount(async () => {
     await fetchDocuments();
@@ -40,12 +40,16 @@
   }
 
   function selectDocument(id) {
+    if (selectedDocument && selectedDocument.id === id) {
+      // Same document selected, do nothing
+      return;
+    }
     selectedDocument = documents.find((doc) => doc.id === id);
+    console.log('Selected document:', selectedDocument);
     question = '';
     answer = '';
     showLandingPage = false;
     messages = [];
-    console.log('Selected document:', selectedDocument);
   }
 
   async function handleSubmit(event) {
@@ -89,15 +93,27 @@
         const data = await response.json();
         console.log('Received data:', data);
 
-        messages = [...messages, { type: 'bot', text: data.response }];
+        // Add a placeholder for the assistant's message
+        const assistantMessage = {
+          type: 'bot',
+          text: data.response,
+          displayedText: '',
+          typing: true
+        };
+        messages = [...messages, assistantMessage];
         console.log('Messages after bot response:', messages);
+
+        // Start the typing effect
+        typeAssistantMessage(assistantMessage);
       } catch (error) {
         console.error('Error fetching answer:', error);
         messages = [
           ...messages,
           {
             type: 'bot',
-            text: 'Sorry, there was an error fetching the answer. Please try again.'
+            text: 'Sorry, there was an error fetching the answer. Please try again.',
+            displayedText: '',
+            typing: false
           }
         ];
       } finally {
@@ -107,42 +123,103 @@
   }
 
   function parseAssistantResponse(text) {
+    // Check if the assistant is unable to answer the query
+    const unableToAnswer = text.trim() === 'Unable to answer your query from the text.';
+
+    if (unableToAnswer) {
+      // Return the response without sanitization
+      return `<p>${text.trim()}</p>`;
+    }
+
     // Split the response into main content and source pages
     const [content, pagesLine] = text.split('Source page numbers:');
-    let sanitizedContent = DOMPurify.sanitize(marked.parse(content.trim()));
 
-    if (pagesLine && selectedDocument && selectedDocument.source_url) {
+    // Parse the Markdown content without sanitization
+    let parsedContent = marked.parse(content.trim());
+
+    if (pagesLine && selectedDocument && isValidUrl(selectedDocument.source_url)) {
       // Extract page numbers from the pagesLine
       const pagesText = pagesLine.trim().replace(/[\[\]]/g, '');
       const pageNumbers = pagesText.split(',').map((num) => num.trim());
 
       // Construct hyperlinks for each page number
       const pageLinks = pageNumbers.map((page) => {
-        const url = `${selectedDocument.source_url}#page=${page}`;
-        return `<a href="${url}" target="_blank">Page ${page}</a>`;
+        const source_url = `${selectedDocument.source_url}#page=${page}`;
+        return `<a href="${source_url}" target="_blank" rel="noopener noreferrer">Page ${page}</a>`;
       });
 
-      // Append the hyperlinks to the sanitized content
+      // Append the hyperlinks to the parsed content
       const pagesHtml = `<p>Source pages: ${pageLinks.join(', ')}</p>`;
-      sanitizedContent += pagesHtml;
+      parsedContent += pagesHtml;
     }
 
-    return sanitizedContent;
+    return parsedContent;
+  }
+
+  // Helper function to validate URL
+  function isValidUrl(string) {
+    try {
+      new URL(string);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Typing effect for assistant's message
+  function typeAssistantMessage(message) {
+    const fullText = message.text;
+    let index = 0;
+    const typingSpeed = 10; // Adjust typing speed here (milliseconds per character)
+
+    function typeCharacter() {
+      if (index < fullText.length) {
+        // Append the next character
+        message.displayedText += fullText.charAt(index);
+        index++;
+
+        // Update the messages array to trigger reactivity
+        messages = [...messages];
+
+        // Scroll to bottom after updating messages
+        scrollToBottom();
+
+        // Schedule the next character
+        setTimeout(typeCharacter, typingSpeed);
+      } else {
+        // Typing finished
+        message.typing = false;
+        messages = [...messages];
+      }
+    }
+
+    typeCharacter();
+  }
+
+  // Function to scroll to the bottom of the chat container
+  function scrollToBottom() {
+    setTimeout(() => {
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+    }, 0);
   }
 </script>
 
 <div class="h-screen bg-gray-900 flex flex-col">
   <!-- Header -->
   <header class="bg-gray-800 text-gray-100 p-4 flex-shrink-0">
-    <h1 class="text-3xl font-bold">UsPolicy.io</h1>
-    {#if selectedDocument}
-      <h2 class="text-xl mt-1">{selectedDocument.title}</h2>
-    {/if}
+    <div class="flex items-center">
+      <h1 class="text-3xl font-bold">UsPolicy.io</h1>
+      {#if selectedDocument}
+        <h2 class="text-xl ml-4">{selectedDocument.title}</h2>
+      {/if}
+    </div>
   </header>
 
-  <div class="flex flex-grow overflow-hidden">
+  <div class="flex flex-col md:flex-row flex-grow overflow-hidden">
     <!-- Sidebar -->
-    <div class="w-1/5 bg-gray-800 p-4 overflow-y-auto h-full">
+    <div class="md:w-1/5 bg-gray-800 p-4 overflow-y-auto h-full">
       <h2 class="text-xl font-bold mb-4 text-gray-100">Documents</h2>
       <ul>
         {#each documents as document}
@@ -163,7 +240,7 @@
     </div>
 
     <!-- Main content area -->
-    <div class="w-4/5 bg-gray-900 p-8 flex flex-col h-full">
+    <div class="md:w-4/5 bg-gray-900 p-4 md:p-8 flex flex-col h-full">
       {#if showLandingPage}
         <div class="flex flex-col flex-grow justify-center items-center">
           <h2 class="text-4xl font-bold text-center text-gray-100 mb-4 flex items-center">
@@ -182,11 +259,11 @@
         </div>
       {:else if selectedDocument}
         <!-- Chat messages -->
-        <div class="flex-1 overflow-y-auto mb-4">
+        <div class="flex-1 overflow-y-auto mb-4" bind:this={chatContainer}>
           {#each messages as message}
             <div class={message.type === 'user' ? 'text-right' : 'text-left'}>
               <div
-                class={`inline-block p-2 m-2 rounded-lg max-w-xl ${
+                class={`inline-block p-2 m-2 rounded-lg max-w-full md:max-w-xl ${
                   message.type === 'user'
                     ? 'bg-blue-700 text-white'
                     : 'bg-gray-700 text-gray-200 bot-message'
@@ -194,7 +271,7 @@
                 style="white-space: pre-wrap;"
               >
                 {#if message.type === 'bot'}
-                  {@html parseAssistantResponse(message.text)}
+                  {@html parseAssistantResponse(message.displayedText)}
                 {:else}
                   {message.text}
                 {/if}
@@ -204,19 +281,19 @@
         </div>
 
         <!-- Input form -->
-        <form on:submit={handleSubmit} class="flex">
+        <form on:submit={handleSubmit} class="flex flex-col md:flex-row">
           <input
             type="text"
             bind:value={question}
             placeholder="Enter your question here..."
             class="flex-1 p-4 bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-lg 
             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
-            transition-all duration-300 text-lg placeholder-gray-500"
+            transition-all duration-300 text-lg placeholder-gray-500 mb-2 md:mb-0"
           />
           <button
             type="submit"
             disabled={isLoading}
-            class="ml-2 bg-indigo-600 text-white p-2 
+            class="md:ml-2 bg-indigo-600 text-white p-2 
             rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 
             focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >

@@ -82,9 +82,9 @@ def generate_completion(context, question, pages):
                 "role": "user",
                 "content": f"""Pretend you are a politically progressive and left-leaning bot. The grave threat that right-wing politics poses to the sanctity of American Freedom. Please summarize the following text against the following query and be sure to use a grave tone as the document the text is referencing is a threat to democracy in America. Limit to 1 paragraph using layman terms. Do not answer questions about yourself. 
                 
-                If the question is entirely unrelated to the text, 'Unable answer to your query from the text'.
-                
-                Please format your response in clear paragraphs, using new lines to separate different points for better readability.
+                If you are unable to answer the query based on the text, simply respond with 'Unable to answer your query from the text.' Do not include any additional information or page numbers in this case.
+
+                At the end of your response, if you have answered the query, please list the source page numbers in the format: "Source page mumbers: [page1, page2, ...]".
 
                 QUERY: {question}
 
