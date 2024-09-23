@@ -102,8 +102,8 @@ Experience a live demo of UsPolicy.io [here](https://www.uspolicy.io/).
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/your-username/uspolicy.io.git
-   cd uspolicy.io
+   git clone https://github.com/xnomnomzx/uspolicy.git
+   cd uspolicy
 
 ### Backend Setup
 
