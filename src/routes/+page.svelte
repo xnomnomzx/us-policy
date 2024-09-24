@@ -65,7 +65,6 @@
       answer = '';
       messages = [...messages, { type: 'user', text: userQuestion }];
       question = '';
-      console.log('Messages after user input:', messages);
 
       // Check if response is cached in LocalStorage
       const cachedData = localStorage.getItem(userQuestion);
@@ -99,18 +98,13 @@
           }
         );
 
-        console.log('Response status:', response.status);
-        console.log('Response headers:', response.headers.get('Content-Type'));
-
         // Clone the response to read it without consuming the original
         const responseClone = response.clone();
         const responseText = await responseClone.text();
-        console.log('Response text:', responseText);
 
         let data;
         try {
           data = JSON.parse(responseText);
-          console.log('Parsed data:', data);
         } catch (jsonError) {
           throw new Error('Invalid JSON response from the API');
         }
@@ -146,7 +140,6 @@
 
         // Add the assistant's message to messages
         messages = [...messages, assistantMessage];
-        console.log('Messages after bot response:', messages);
 
         // Start the typing effect
         typeAssistantMessage(assistantMessage);
@@ -169,9 +162,7 @@
 
   function parseAssistantResponse(text) {
     // Check if the assistant is unable to answer the query
-    console.log('Response text:', text);
     const unableToAnswer = text.trim().toLowerCase().includes('unable to answer your query from the text');
-    console.log('UNABLE TO ANSWER:', unableToAnswer);
     if (unableToAnswer) {
       // Return the response without adding any source pages
       return `<p>${sanitizeHTML(text.trim())}</p>`;
