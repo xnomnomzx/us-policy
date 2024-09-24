@@ -67,6 +67,23 @@
       question = '';
       console.log('Messages after user input:', messages);
 
+      // Check if response is cached in LocalStorage
+      const cachedData = localStorage.getItem(userQuestion);
+      if (cachedData) {
+        const { response, timestamp } = JSON.parse(cachedData);
+        const cacheDuration = 3600 * 1000; // 1 hour in milliseconds
+        if (Date.now() - timestamp < cacheDuration) {
+          messages = [...messages, { type: 'bot', text: response }];
+          console.log('Retrieved response from cache:', response);
+          isLoading = false;
+          return;
+        } else {
+          // Cache expired
+          localStorage.removeItem(userQuestion);
+          console.log('Cache expired for question:', userQuestion);
+        }
+      }
+
       try {
         const response = await fetch(
           'https://vp1zl5sk39.execute-api.us-east-1.amazonaws.com/default/uspolicy/chat',
@@ -83,23 +100,51 @@
         );
 
         console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers.get('Content-Type'));
 
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch answer: ${response.status} ${response.statusText}`
-          );
+        // Clone the response to read it without consuming the original
+        const responseClone = response.clone();
+        const responseText = await responseClone.text();
+        console.log('Response text:', responseText);
+
+        let data;
+        try {
+          data = JSON.parse(responseText);
+          console.log('Parsed data:', data);
+        } catch (jsonError) {
+          throw new Error('Invalid JSON response from the API');
         }
 
-        const data = await response.json();
-        console.log('Received data:', data);
+        // Check if the response indicates inability to answer
+        const isUnableToAnswer = data.response.trim().toLowerCase().includes('unable to answer your query from the text');
 
-        // Add a placeholder for the assistant's message
+        // Prepare the assistant's message
         const assistantMessage = {
           type: 'bot',
           text: data.response,
           displayedText: '',
           typing: true
         };
+
+        // If able to answer, append source pages if available
+        if (!isUnableToAnswer) {
+          if (data.sourcePages && Array.isArray(data.sourcePages) && data.sourcePages.length > 0) {
+            const sourcesText = data.sourcePages.map(page => `Source: [Page ${page}](/path-to-document?page=${page})`).join('\n');
+            assistantMessage.text += `\n\n${sourcesText}`;
+          }
+
+          // Cache the response in LocalStorage
+          const cacheEntry = {
+            response: data.response,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(userQuestion, JSON.stringify(cacheEntry));
+          console.log('Cached response:', cacheEntry);
+        } else {
+          console.log('Assistant unable to answer the query.');
+        }
+
+        // Add the assistant's message to messages
         messages = [...messages, assistantMessage];
         console.log('Messages after bot response:', messages);
 
@@ -124,37 +169,51 @@
 
   function parseAssistantResponse(text) {
     // Check if the assistant is unable to answer the query
-    const unableToAnswer = text.trim() === 'Unable to answer your query from the text.';
-
+    console.log('Response text:', text);
+    const unableToAnswer = text.trim().toLowerCase().includes('unable to answer your query from the text');
+    console.log('UNABLE TO ANSWER:', unableToAnswer);
     if (unableToAnswer) {
-      // Return the response without sanitization
-      return `<p>${text.trim()}</p>`;
+      // Return the response without adding any source pages
+      return `<p>${sanitizeHTML(text.trim())}</p>`;
     }
 
-    // Split the response into main content and source pages
-    const [content, pagesLine] = text.split('Source page numbers:');
+    // Only proceed to split and process source pages if the assistant is able to answer
+    let content = text;
+    let pagesLine = '';
 
-    // Parse the Markdown content without sanitization
+    if (text.includes('Source page numbers:')) {
+      // Split the response into main content and source pages
+      [content, pagesLine] = text.split('Source page numbers:');
+    }
+
+    // Parse the main content from Markdown to HTML
     let parsedContent = marked.parse(content.trim());
 
+    // Process source pages if they exist
     if (pagesLine && selectedDocument && isValidUrl(selectedDocument.source_url)) {
-      // Extract page numbers from the pagesLine
+      // Extract and clean page numbers from the pagesLine
       const pagesText = pagesLine.trim().replace(/[\[\]]/g, '');
-      const pageNumbers = pagesText.split(',').map((num) => num.trim());
-
+      const pageNumbers = pagesText.split(',').map((num) => num.trim()).filter(Boolean);
+      if (unableToAnswer) {
+        // Split the response into main content and source pages
+        pagesLine = '';
+      }
       // Construct hyperlinks for each page number
-      const pageLinks = pageNumbers.map((page) => {
-        const source_url = `${selectedDocument.source_url}#page=${page}`;
-        return `<a href="${source_url}" target="_blank" rel="noopener noreferrer">Page ${page}</a>`;
-      });
+      if (pageNumbers.length > 0) {
+        const pageLinks = pageNumbers.map((page) => {
+          const source_url = `${selectedDocument.source_url}#page=${page}`;
+          return `<a href="${sanitizeURL(source_url)}" target="_blank" rel="noopener noreferrer">Page ${page}</a>`;
+        });
 
-      // Append the hyperlinks to the parsed content
-      const pagesHtml = `<p>Source pages: ${pageLinks.join(', ')}</p>`;
-      parsedContent += pagesHtml;
+        // Append the hyperlinks to the parsed content
+        const pagesHtml = `<p>Source pages: ${pageLinks.join(', ')}</p>`;
+        parsedContent += pagesHtml;
+      }
     }
 
     return parsedContent;
-  }
+}
+
 
   // Helper function to validate URL
   function isValidUrl(string) {
@@ -163,6 +222,25 @@
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  // Function to sanitize HTML (using DOMPurify or similar library is recommended)
+  function sanitizeHTML(html) {
+    // Simple sanitization example (replace with a robust solution like DOMPurify)
+    const tempDiv = document.createElement('div');
+    tempDiv.textContent = html;
+    return tempDiv.innerHTML;
+  }
+
+  // Function to sanitize URLs
+  function sanitizeURL(url) {
+    try {
+      const sanitizedUrl = new URL(url);
+      return sanitizedUrl.href;
+    } catch (_) {
+      console.error('Invalid URL:', url);
+      return '#';
     }
   }
 
@@ -271,7 +349,7 @@
                 style="white-space: pre-wrap;"
               >
                 {#if message.type === 'bot'}
-                  {@html parseAssistantResponse(message.displayedText)}
+                  {@html parseAssistantResponse(message.displayedText || message.text)}
                 {:else}
                   {message.text}
                 {/if}

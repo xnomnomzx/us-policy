@@ -2,7 +2,41 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		
+		<!-- Primary Favicon -->
+		<link rel="icon" href="/icons/favicon.ico" type="image/x-icon" />
+		
+		<!-- PNG Favicons for Different Sizes -->
+		<link rel="icon" href="/icons/favicon-32x32.png" sizes="32x32" type="image/png" />
+		<link rel="icon" href="/icons/favicon-16x16.png" sizes="16x16" type="image/png" />
+		<link rel="icon" href="/icons/favicon-16x16.png" sizes="16x16" type="image/png" />
+		<link rel="icon" href="/icons/android-chrome-192x192.png" sizes="192x192" type="image/png" />
+		<link rel="icon" href="/icons/android-chrome-512x512.png" sizes="512x512" type="image/png" />
+		
+		<!-- Apple Touch Icon -->
+		<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+
+		<!-- Web App Manifest (Optional for Progressive Web Apps) -->
+		<link rel="manifest" href="/icons/site.webmanifest" />
+		
+		<!-- Global Meta Tags for SEO -->
+		<meta name="description" content="UsPolicy.io provides an interactive chat interface to query and retrieve information from policy documents using advanced AI and vector search technologies." />
+		<meta name="keywords" content="Policy, Legislation, Election, Chat Interface, Data Science, AI, Svelte, AWS Lambda, Databricks, GPT-4, OpenAI, Semantic Search" />
+		<meta name="author" content="Matthew Boyer" />
+		
+		<!-- Open Graph Meta Tags for Social Media -->
+		<meta property="og:title" content="UsPolicy.io - Policy Document Chat Interface" />
+		<meta property="og:description" content="Interact with policy documents using an AI-powered chat interface, leveraging Databricks vector search embeddings and AWS Lambda for seamless data access." />
+		<meta property="og:image" content="/icons/android-chrome-512x512.png" />
+		<meta property="og:url" content="https://uspolicy.io" />
+		<meta property="og:type" content="website" />
+		
+		<!-- Twitter Card Meta Tags -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content="UsPolicy.io - Policy Document Chat Interface" />
+		<meta name="twitter:description" content="Interact with policy documents using an AI-powered chat interface, leveraging Databricks vector search embeddings and AWS Lambda for seamless data access." />
+		<meta name="twitter:image" content="/icons/android-chrome-512x512.png" />
+				
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		%sveltekit.head%
 		<style>
