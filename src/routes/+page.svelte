@@ -1,20 +1,47 @@
 <script>
   import { onMount } from 'svelte';
-  import { Send } from 'lucide-svelte';
+  import { X, Send } from 'lucide-svelte'; // Importing icons
   import { marked } from 'marked';
+  import DOMPurify from 'dompurify';
 
   let documents = [];
   let selectedDocument = null;
   let question = '';
-  let answer = '';
   let isLoading = false;
   let showLandingPage = true;
   let messages = [];
   let chatContainer;
 
+  // State variables for the page note
+  let showPageNote = null; // Initialize as null to prevent flash
+  let dontShowAgain = false;
+
+  const CACHE_DURATION = 3600 * 1000; // 1 hour in milliseconds
+
   onMount(async () => {
     await fetchDocuments();
+    cleanUpCache();
+    const interval = setInterval(cleanUpCache, CACHE_DURATION);
+    return () => clearInterval(interval);
   });
+
+  // Load the dismissal state from LocalStorage
+  onMount(() => {
+    const dismissed = localStorage.getItem('dismissPageNote');
+    if (dismissed === 'true') {
+      showPageNote = false;
+    } else {
+      showPageNote = true;
+    }
+  });
+
+  // Function to handle dismissal of the page note
+  function dismissPageNote() {
+    showPageNote = false;
+    if (dontShowAgain) {
+      localStorage.setItem('dismissPageNote', 'true');
+    }
+  }
 
   async function fetchDocuments() {
     try {
@@ -28,9 +55,7 @@
         }
       );
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch documents: ${response.status} ${response.statusText}`
-        );
+        throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
       }
       documents = await response.json();
       console.log('Documents:', documents);
@@ -47,9 +72,41 @@
     selectedDocument = documents.find((doc) => doc.id === id);
     console.log('Selected document:', selectedDocument);
     question = '';
-    answer = '';
     showLandingPage = false;
     messages = [];
+  }
+
+  // Helper function to generate a unique cache key
+  function generateCacheKey(documentId, question) {
+    return `${documentId}::${question}`;
+  }
+
+  // Helper function to retrieve cached response
+  function getCachedResponse(documentId, question) {
+    const cacheKey = generateCacheKey(documentId, question);
+    const cachedData = localStorage.getItem(cacheKey);
+    if (cachedData) {
+      const { response, timestamp } = JSON.parse(cachedData);
+      if (Date.now() - timestamp < CACHE_DURATION) {
+        return response;
+      } else {
+        // Cache expired
+        localStorage.removeItem(cacheKey);
+        console.log('Cache expired for key:', cacheKey);
+      }
+    }
+    return null;
+  }
+
+  // Helper function to cache response
+  function cacheResponse(documentId, question, response) {
+    const cacheKey = generateCacheKey(documentId, question);
+    const cacheEntry = {
+      response,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
+    console.log('Cached response for key:', cacheKey);
   }
 
   async function handleSubmit(event) {
@@ -62,25 +119,17 @@
 
       const userQuestion = question.trim();
       isLoading = true;
-      answer = '';
       messages = [...messages, { type: 'user', text: userQuestion }];
       question = '';
+      console.log('Messages after user input:', messages);
 
-      // Check if response is cached in LocalStorage
-      const cachedData = localStorage.getItem(userQuestion);
-      if (cachedData) {
-        const { response, timestamp } = JSON.parse(cachedData);
-        const cacheDuration = 3600 * 1000; // 1 hour in milliseconds
-        if (Date.now() - timestamp < cacheDuration) {
-          messages = [...messages, { type: 'bot', text: response }];
-          console.log('Retrieved response from cache:', response);
-          isLoading = false;
-          return;
-        } else {
-          // Cache expired
-          localStorage.removeItem(userQuestion);
-          console.log('Cache expired for question:', userQuestion);
-        }
+      // Retrieve cached response based on document and question
+      const cachedResponse = getCachedResponse(selectedDocument.id, userQuestion);
+      if (cachedResponse) {
+        messages = [...messages, { type: 'bot', text: cachedResponse }];
+        console.log('Retrieved response from cache:', cachedResponse);
+        isLoading = false;
+        return;
       }
 
       try {
@@ -98,19 +147,22 @@
           }
         );
 
-        // Clone the response to read it without consuming the original
-        const responseClone = response.clone();
-        const responseText = await responseClone.text();
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers.get('Content-Type'));
 
-        let data;
-        try {
-          data = JSON.parse(responseText);
-        } catch (jsonError) {
+        // Check if the response is JSON
+        const contentType = response.headers.get('Content-Type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Non-JSON response received:', text);
           throw new Error('Invalid JSON response from the API');
         }
 
+        const data = await response.json();
+        console.log('Received data:', data);
+
         // Check if the response indicates inability to answer
-        const isUnableToAnswer = data.response.trim().toLowerCase().includes('unable to answer your query from the text');
+        const unableToAnswer = data.response.trim().toLowerCase() === 'unable to answer your query from the text.';
 
         // Prepare the assistant's message
         const assistantMessage = {
@@ -121,25 +173,23 @@
         };
 
         // If able to answer, append source pages if available
-        if (!isUnableToAnswer) {
+        if (!unableToAnswer) {
           if (data.sourcePages && Array.isArray(data.sourcePages) && data.sourcePages.length > 0) {
-            const sourcesText = data.sourcePages.map(page => `Source: [Page ${page}](/path-to-document?page=${page})`).join('\n');
+            const sourcesText = data.sourcePages
+              .map((page) => `Source: [Page ${page}](${generatePageLink(page)})`)
+              .join('\n');
             assistantMessage.text += `\n\n${sourcesText}`;
           }
 
           // Cache the response in LocalStorage
-          const cacheEntry = {
-            response: data.response,
-            timestamp: Date.now()
-          };
-          localStorage.setItem(userQuestion, JSON.stringify(cacheEntry));
-          console.log('Cached response:', cacheEntry);
+          cacheResponse(selectedDocument.id, userQuestion, data.response);
         } else {
           console.log('Assistant unable to answer the query.');
         }
 
         // Add the assistant's message to messages
         messages = [...messages, assistantMessage];
+        console.log('Messages after bot response:', messages);
 
         // Start the typing effect
         typeAssistantMessage(assistantMessage);
@@ -161,70 +211,36 @@
   }
 
   function parseAssistantResponse(text) {
-    // Check if the assistant is unable to answer the query
-    const unableToAnswer = text.trim().toLowerCase().includes('unable to answer your query from the text');
+    const unableToAnswer = text.trim().toLowerCase() === 'unable to answer your query from the text.';
+
     if (unableToAnswer) {
-      // Return the response without adding any source pages
-      return `<p>${sanitizeHTML(text.trim())}</p>`;
+      return `<p>${DOMPurify.sanitize(text.trim())}</p>`;
     }
 
-    // Only proceed to split and process source pages if the assistant is able to answer
-    let content = text;
-    let pagesLine = '';
+    const [content, pagesLine] = text.split('Source page numbers:');
 
-    if (text.includes('Source page numbers:')) {
-      // Split the response into main content and source pages
-      [content, pagesLine] = text.split('Source page numbers:');
-    }
-
-    // Parse the main content from Markdown to HTML
     let parsedContent = marked.parse(content.trim());
 
-    // Process source pages if they exist
     if (pagesLine && selectedDocument && isValidUrl(selectedDocument.source_url)) {
-      // Extract and clean page numbers from the pagesLine
       const pagesText = pagesLine.trim().replace(/[\[\]]/g, '');
-      const pageNumbers = pagesText.split(',').map((num) => num.trim()).filter(Boolean);
-      if (unableToAnswer) {
-        // Split the response into main content and source pages
-        pagesLine = '';
-      }
-      // Construct hyperlinks for each page number
-      if (pageNumbers.length > 0) {
-        const pageLinks = pageNumbers.map((page) => {
-          const source_url = `${selectedDocument.source_url}#page=${page}`;
-          return `<a href="${sanitizeURL(source_url)}" target="_blank" rel="noopener noreferrer">Page ${page}</a>`;
-        });
+      const pageNumbers = pagesText.split(',').map((num) => num.trim());
 
-        // Append the hyperlinks to the parsed content
-        const pagesHtml = `<p>Source pages: ${pageLinks.join(', ')}</p>`;
-        parsedContent += pagesHtml;
-      }
+      const pageLinks = pageNumbers.map((page) => {
+        return `<a href="${generatePageLink(page)}" target="_blank" rel="noopener noreferrer">Page ${page}</a>`;
+      });
+
+      const pagesHtml = `<p>Source pages: ${pageLinks.join(', ')}</p>`;
+      parsedContent += pagesHtml;
     }
 
     return parsedContent;
-}
-
-
-  // Helper function to validate URL
-  function isValidUrl(string) {
-    try {
-      new URL(string);
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 
-  // Function to sanitize HTML (using DOMPurify or similar library is recommended)
-  function sanitizeHTML(html) {
-    // Simple sanitization example (replace with a robust solution like DOMPurify)
-    const tempDiv = document.createElement('div');
-    tempDiv.textContent = html;
-    return tempDiv.innerHTML;
+  function generatePageLink(logicalPage) {
+    // Since pdfjs-lib is removed, use logicalPage directly
+    return `${selectedDocument.source_url}#page=${logicalPage}`;
   }
 
-  // Function to sanitize URLs
   function sanitizeURL(url) {
     try {
       const sanitizedUrl = new URL(url);
@@ -235,11 +251,19 @@
     }
   }
 
-  // Typing effect for assistant's message
+  function isValidUrl(string) {
+    try {
+      new URL(string);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function typeAssistantMessage(message) {
     const fullText = message.text;
     let index = 0;
-    const typingSpeed = 10; // Adjust typing speed here (milliseconds per character)
+    const typingSpeed = 10; // milliseconds per character
 
     function typeCharacter() {
       if (index < fullText.length) {
@@ -265,13 +289,32 @@
     typeCharacter();
   }
 
-  // Function to scroll to the bottom of the chat container
   function scrollToBottom() {
     setTimeout(() => {
       if (chatContainer) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
     }, 0);
+  }
+
+  function cleanUpCache() {
+    const now = Date.now();
+
+    for (const key in localStorage) {
+      if (localStorage.hasOwnProperty(key)) {
+        // Expecting keys in the format 'documentId::question'
+        if (key.includes('::')) {
+          const cachedData = localStorage.getItem(key);
+          if (cachedData) {
+            const { timestamp } = JSON.parse(cachedData);
+            if (now - timestamp > CACHE_DURATION) {
+              localStorage.removeItem(key);
+              console.log('Removed expired cache for key:', key);
+            }
+          }
+        }
+      }
+    }
   }
 </script>
 
@@ -327,6 +370,33 @@
           </p>
         </div>
       {:else if selectedDocument}
+        <!-- Dismissible Page Note at Bottom Left -->
+        {#if showPageNote === true}
+          <div
+            class="fixed bottom-4 left-4 bg-white text-gray-800 p-4 rounded-lg shadow-2xl flex flex-col md:flex-row items-start space-y-2 md:space-y-0 md:space-x-4 z-50"
+            transition:fade={{ duration: 300 }}
+            role="alert"
+            aria-live="assertive"
+          >
+            <div>
+              <p class="text-sm">
+                <strong>Note:</strong> Source page numbers are based on the PDF and not the document itself.
+              </p>
+              <label class="mt-2 flex items-center text-xs text-gray-600">
+                <input type="checkbox" bind:checked={dontShowAgain} />
+                <span class="ml-2">Don't show this again</span>
+              </label>
+            </div>
+            <button
+              on:click={dismissPageNote}
+              class="self-start text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Dismiss notification"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        {/if}
+
         <!-- Chat messages -->
         <div class="flex-1 overflow-y-auto mb-4" bind:this={chatContainer}>
           {#each messages as message}
@@ -349,8 +419,8 @@
           {/each}
         </div>
 
-        <!-- Input form -->
-        <form on:submit={handleSubmit} class="flex flex-col md:flex-row">
+        <!-- Input form with original width -->
+        <form on:submit={handleSubmit} class="flex flex-col md:flex-row w-full">
           <input
             type="text"
             bind:value={question}
@@ -401,6 +471,15 @@
   @keyframes spin {
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  /* Responsive adjustments for the page note */
+  @media (max-width: 640px) {
+    .fixed.bottom-4.left-4.bg-white.text-gray-800.p-4.rounded-lg.shadow-2xl {
+      width: 90%;
+      left: 50%;
+      transform: translateX(-50%);
     }
   }
 </style>

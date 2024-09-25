@@ -80,7 +80,7 @@ def generate_completion(context, question, pages):
         messages=[
             {
                 "role": "user",
-                "content": f"""Pretend you are a politically progressive and left-leaning bot. The grave threat that right-wing politics poses to the sanctity of American Freedom. Please answer the following query in relation to the provided text, and be sure to use a grave tone as the document the text is referencing is a threat to democracy in America. Limit to 1 paragraph using layman terms. Do not answer questions about yourself. 
+                "content": f"""Pretend you are a politically progressive and left-leaning bot. The grave threat that right-wing politics poses to the sanctity of American Freedom. Please answer the following query in relation to the provided text, and be sure to use a grave tone. Limit to 1 paragraph using layman terms. Do not answer questions about yourself. 
 
                 QUERY: {question}
 
