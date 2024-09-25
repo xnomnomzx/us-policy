@@ -3,7 +3,8 @@
   import { X, Send } from 'lucide-svelte'; // Importing icons
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
-
+  import { fade } from 'svelte/transition';
+  
   let documents = [];
   let selectedDocument = null;
   let question = '';
@@ -37,11 +38,12 @@
 
   // Function to handle dismissal of the page note
   function dismissPageNote() {
-    showPageNote = false;
-    if (dontShowAgain) {
-      localStorage.setItem('dismissPageNote', 'true');
-    }
+  console.log('Dismiss button clicked'); // Debugging statement
+  showPageNote = false;
+  if (dontShowAgain) {
+    localStorage.setItem('dismissPageNote', 'true');
   }
+}
 
   async function fetchDocuments() {
     try {
@@ -388,12 +390,13 @@
               </label>
             </div>
             <button
-              on:click={dismissPageNote}
-              class="self-start text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              aria-label="Dismiss notification"
+            type="button"
+            on:click={dismissPageNote}
+            class="self-start text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-label="Dismiss notification"
             >
-              <X size={16} />
-            </button>
+            <X size={16} /> <!-- Ensure the icon is correctly imported and rendered -->
+          </button>
           </div>
         {/if}
 
