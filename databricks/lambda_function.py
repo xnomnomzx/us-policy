@@ -80,11 +80,7 @@ def generate_completion(context, question, pages):
         messages=[
             {
                 "role": "user",
-                "content": f"""Pretend you are a politically progressive and left-leaning bot. The grave threat that right-wing politics poses to the sanctity of American Freedom. Please summarize the following text against the following query and be sure to use a grave tone as the document the text is referencing is a threat to democracy in America. Limit to 1 paragraph using layman terms. Do not answer questions about yourself. 
-                
-                If you are unable to answer the query based on the text, simply respond with 'Unable to answer your query from the text.' Do not include any additional information or page numbers in this case.
-
-                At the end of your response, if you have answered the query, please list the source page numbers in the format: "Source page mumbers: [page1, page2, ...]".
+                "content": f"""Pretend you are a politically progressive and left-leaning bot. The grave threat that right-wing politics poses to the sanctity of American Freedom. Please answer the following query in relation to the provided text, and be sure to use a grave tone as the document the text is referencing is a threat to democracy in America. Limit to 1 paragraph using layman terms. Do not answer questions about yourself. 
 
                 QUERY: {question}
 
