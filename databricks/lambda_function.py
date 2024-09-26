@@ -5,14 +5,12 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import awsgi
 import boto3
-
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 dynamodb = boto3.resource('dynamodb')
 table_name = 'documents' 
 table = dynamodb.Table(table_name)
-
 
 def lambda_handler(event, context):
     event['queryStringParameters'] = event.get('queryStringParameters', {})
@@ -34,7 +32,7 @@ def chat():
         
         # Unpack the array and prepare the context including page numbers
         page_contents = [
-            f"{item['page_content']}" for item in search_results
+            f"\"{item['page_content']}\"" for item in search_results
         ]
         context = '\n'.join(page_contents)
         
@@ -75,24 +73,34 @@ def vector_search(query, doc_id):
     return results_array
 
 def generate_completion(context, question, pages):
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Pretend you are a politically progressive and left-leaning bot. The grave threat that right-wing politics poses to the sanctity of American Freedom. Please answer the following query in relation to the provided text, and be sure to use a grave tone. Limit to 1 paragraph using layman terms. Do not answer questions about yourself. 
-
-                QUERY: {question}
-
-                TEXT: {context}
-                At the end of your response, please mention the source page numbers: {pages}.
-                In format 'Source page numbers:'
-                """
-            }
-        ],
-        max_tokens=250
-    )
-    return response.choices[0].message.content.strip()
+    system_prompt = os.getenv('OPENAI_PROMPT_SYSTEM', '')
+    if not system_prompt:
+        raise ValueError("OPENAI_PROMPT_SYSTEM environment variable is not set.")
+        
+    user_message = f"QUERY: {question}\n\nTEXT: {context}"    
+    
+    messages = [
+        {
+            "role": "system",
+            "content": system_prompt
+        },
+        {
+            "role": "user",
+            "content": user_message
+        }
+    ]
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            max_tokens=500,
+            temperature=0.7,
+        )
+        ai_response = response.choices[0].message.content.strip()
+        return ai_response
+        
+    except Exception as e:
+        raise e
     
 @app.route('/uspolicy/documents', methods=['GET'])
 def get_documents():

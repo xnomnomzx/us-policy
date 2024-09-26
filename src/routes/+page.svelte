@@ -1,9 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import { X, Send } from 'lucide-svelte'; // Importing icons
-  import { marked } from 'marked';
   import DOMPurify from 'dompurify';
   import { fade } from 'svelte/transition';
+  import { marked } from 'marked';
   
   let documents = [];
   let selectedDocument = null;
@@ -38,12 +38,12 @@
 
   // Function to handle dismissal of the page note
   function dismissPageNote() {
-  console.log('Dismiss button clicked'); // Debugging statement
-  showPageNote = false;
-  if (dontShowAgain) {
-    localStorage.setItem('dismissPageNote', 'true');
+    console.log('Dismiss button clicked'); // Debugging statement
+    showPageNote = false;
+    if (dontShowAgain) {
+      localStorage.setItem('dismissPageNote', 'true');
+    }
   }
-}
 
   async function fetchDocuments() {
     try {
@@ -128,9 +128,10 @@
       // Retrieve cached response based on document and question
       const cachedResponse = getCachedResponse(selectedDocument.id, userQuestion);
       if (cachedResponse) {
-        messages = [...messages, { type: 'bot', text: cachedResponse }];
+        messages = [...messages, { type: 'bot', text: cachedResponse, displayedText: cachedResponse }];
         console.log('Retrieved response from cache:', cachedResponse);
         isLoading = false;
+        scrollToBottom();
         return;
       }
 
@@ -170,8 +171,8 @@
         const assistantMessage = {
           type: 'bot',
           text: data.response,
-          displayedText: '',
-          typing: true
+          displayedText: '', // For typing effect
+          typing: !unableToAnswer // Only show typing if able to answer
         };
 
         // If able to answer, append source pages if available
@@ -193,8 +194,15 @@
         messages = [...messages, assistantMessage];
         console.log('Messages after bot response:', messages);
 
-        // Start the typing effect
-        typeAssistantMessage(assistantMessage);
+        if (assistantMessage.typing) {
+          // Start the typing effect
+          typeAssistantMessage(assistantMessage);
+        } else {
+          // Directly set the displayedText if no typing effect
+          assistantMessage.displayedText = assistantMessage.text;
+          messages = [...messages];
+          scrollToBottom();
+        }
       } catch (error) {
         console.error('Error fetching answer:', error);
         messages = [
@@ -202,29 +210,27 @@
           {
             type: 'bot',
             text: 'Sorry, there was an error fetching the answer. Please try again.',
-            displayedText: '',
+            displayedText: 'Sorry, there was an error fetching the answer. Please try again.',
             typing: false
           }
         ];
+        scrollToBottom();
       } finally {
         isLoading = false;
       }
     }
   }
 
-  function parseAssistantResponse(text) {
-    const unableToAnswer = text.trim().toLowerCase() === 'unable to answer your query from the text.';
-
-    if (unableToAnswer) {
-      return `<p>${DOMPurify.sanitize(text.trim())}</p>`;
-    }
-
+  function parseAssistantResponse(htmlContent) {
+    // Sanitize the HTML content using DOMPurify
+    const text = DOMPurify.sanitize(htmlContent);
     const [content, pagesLine] = text.split('Source page numbers:');
 
     let parsedContent = marked.parse(content.trim());
 
     if (pagesLine && selectedDocument && isValidUrl(selectedDocument.source_url)) {
-      const pagesText = pagesLine.trim().replace(/[\[\]]/g, '');
+      // Remove both square brackets [] and curly braces {}
+      const pagesText = pagesLine.trim().replace(/[{}\[\]]/g, '');
       const pageNumbers = pagesText.split(',').map((num) => num.trim());
 
       const pageLinks = pageNumbers.map((page) => {
@@ -390,13 +396,13 @@
               </label>
             </div>
             <button
-            type="button"
-            on:click={dismissPageNote}
-            class="self-start text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            aria-label="Dismiss notification"
+              type="button"
+              on:click={dismissPageNote}
+              class="self-start text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Dismiss notification"
             >
-            <X size={16} /> <!-- Ensure the icon is correctly imported and rendered -->
-          </button>
+              <X size={16} /> <!-- Ensure the icon is correctly imported and rendered -->
+            </button>
           </div>
         {/if}
 
