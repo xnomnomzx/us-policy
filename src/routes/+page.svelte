@@ -348,7 +348,7 @@
     </div>
 
     <!-- Main content area -->
-    <div class="md:w-4/5 bg-gray-900 p-4 md:p-8 flex flex-col h-full">
+    <div class="md:w-4/5 bg-gray-900 p-4 md:p-8 flex flex-col h-full relative">
       {#if showLandingPage}
         <div class="flex flex-col flex-grow justify-center items-center">
           <h2 class="text-4xl font-bold text-center text-gray-100 mb-4 flex items-center">
@@ -366,31 +366,36 @@
           </p>
         </div>
       {:else if selectedDocument}
-        <!-- Dismissible Page Note at Bottom Left -->
+        <!-- Dismissible Page Note on Top of Chat Box -->
         {#if showPageNote === true}
           <div
-            class="fixed bottom-4 left-4 bg-white text-gray-800 p-4 rounded-lg shadow-2xl flex flex-col md:flex-row items-start space-y-2 md:space-y-0 md:space-x-4 z-50"
+            class="absolute inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
             transition:fade={{ duration: 300 }}
             role="alert"
             aria-live="assertive"
           >
-            <div>
-              <p class="text-sm">
-                <strong>Note:</strong> Source page numbers are based on the PDF and not the document itself.
-              </p>
-              <label class="mt-2 flex items-center text-xs text-gray-600">
-                <input type="checkbox" bind:checked={dontShowAgain} />
-                <span class="ml-2">Don't show this again</span>
-              </label>
-            </div>
-            <button
-              type="button"
-              on:click={dismissPageNote}
-              class="self-start text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              aria-label="Dismiss notification"
+            <div
+              class="bg-white text-gray-800 p-6 rounded-lg shadow-2xl flex flex-col items-start space-y-4"
+              on:click|stopPropagation
             >
-              <X size={16} /> <!-- Ensure the icon is correctly imported and rendered -->
-            </button>
+              <div>
+                <p class="text-sm">
+                  <strong>Note:</strong> Source page numbers are based on the PDF and not the document itself.
+                </p>
+                <label class="mt-4 flex items-center text-xs text-gray-600">
+                  <input type="checkbox" bind:checked={dontShowAgain} />
+                  <span class="ml-2">Don't show this again</span>
+                </label>
+              </div>
+              <button
+                type="button"
+                on:click={dismissPageNote}
+                class="self-end text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Dismiss notification"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
         {/if}
 
