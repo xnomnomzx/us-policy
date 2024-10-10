@@ -3,8 +3,7 @@
   import { X, Send } from 'lucide-svelte'; // Importing icons
   import DOMPurify from 'dompurify';
   import { fade } from 'svelte/transition';
-  import { marked } from 'marked';
-  
+
   let documents = [];
   let selectedDocument = null;
   let question = '';
@@ -111,6 +110,27 @@
     console.log('Cached response for key:', cacheKey);
   }
 
+  // Function to process citations in the assistant's response
+  function processCitations(responseText) {
+    const source_url = selectedDocument.source_url; // Get the source URL
+
+    function replacePageNumbers(match, pageNumbersStr) {
+      const pageNumbers = pageNumbersStr.split(',').map((p) => p.trim());
+      const links = pageNumbers.map(
+        (page) => `<a href="${source_url}#page=${page}">Page ${page}</a>`
+      );
+      return '(' + links.join(', ') + ')';
+    }
+
+    // Regex pattern to match your citation format '%&(Pg.#)'
+    const regex = /%&\(Pg\.([\d,]+)\)/g;
+
+    // Replace citations in the response text
+    const processedText = responseText.replace(regex, replacePageNumbers);
+
+    return processedText;
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     if (question.trim()) {
@@ -128,10 +148,21 @@
       // Retrieve cached response based on document and question
       const cachedResponse = getCachedResponse(selectedDocument.id, userQuestion);
       if (cachedResponse) {
-        messages = [...messages, { type: 'bot', text: cachedResponse, displayedText: cachedResponse }];
+        messages = [
+          ...messages,
+          {
+            type: 'bot',
+            text: cachedResponse,
+            displayedText: '',
+            typing: true
+          }
+        ];
         console.log('Retrieved response from cache:', cachedResponse);
         isLoading = false;
-        scrollToBottom();
+
+        // Start the typing effect
+        typeAssistantMessage(messages[messages.length - 1]);
+
         return;
       }
 
@@ -145,7 +176,8 @@
             },
             body: JSON.stringify({
               message: userQuestion,
-              documentId: selectedDocument.id
+              documentId: selectedDocument.id,
+              source_url: selectedDocument.source_url // Pass source_url to the backend
             })
           }
         );
@@ -164,45 +196,27 @@
         const data = await response.json();
         console.log('Received data:', data);
 
-        // Check if the response indicates inability to answer
-        const unableToAnswer = data.response.trim().toLowerCase() === 'unable to answer your query from the text.';
+        // Process the assistant's response
+        const processedResponse = processCitations(data.response);
+
+        // Cache the processed response
+        cacheResponse(selectedDocument.id, userQuestion, processedResponse);
 
         // Prepare the assistant's message
         const assistantMessage = {
           type: 'bot',
-          text: data.response,
+          text: processedResponse,
           displayedText: '', // For typing effect
-          typing: !unableToAnswer // Only show typing if able to answer
+          typing: true
         };
-
-        // If able to answer, append source pages if available
-        if (!unableToAnswer) {
-          if (data.sourcePages && Array.isArray(data.sourcePages) && data.sourcePages.length > 0) {
-            const sourcesText = data.sourcePages
-              .map((page) => `Source: [Page ${page}](${generatePageLink(page)})`)
-              .join('\n');
-            assistantMessage.text += `\n\n${sourcesText}`;
-          }
-
-          // Cache the response in LocalStorage
-          cacheResponse(selectedDocument.id, userQuestion, data.response);
-        } else {
-          console.log('Assistant unable to answer the query.');
-        }
 
         // Add the assistant's message to messages
         messages = [...messages, assistantMessage];
         console.log('Messages after bot response:', messages);
 
-        if (assistantMessage.typing) {
-          // Start the typing effect
-          typeAssistantMessage(assistantMessage);
-        } else {
-          // Directly set the displayedText if no typing effect
-          assistantMessage.displayedText = assistantMessage.text;
-          messages = [...messages];
-          scrollToBottom();
-        }
+        // Start the typing effect
+        typeAssistantMessage(assistantMessage);
+
       } catch (error) {
         console.error('Error fetching answer:', error);
         messages = [
@@ -223,49 +237,9 @@
 
   function parseAssistantResponse(htmlContent) {
     // Sanitize the HTML content using DOMPurify
-    const text = DOMPurify.sanitize(htmlContent);
-    const [content, pagesLine] = text.split('Source page numbers:');
-
-    let parsedContent = marked.parse(content.trim());
-
-    if (pagesLine && selectedDocument && isValidUrl(selectedDocument.source_url)) {
-      // Remove both square brackets [] and curly braces {}
-      const pagesText = pagesLine.trim().replace(/[{}\[\]]/g, '');
-      const pageNumbers = pagesText.split(',').map((num) => num.trim());
-
-      const pageLinks = pageNumbers.map((page) => {
-        return `<a href="${generatePageLink(page)}" target="_blank" rel="noopener noreferrer">Page ${page}</a>`;
-      });
-
-      const pagesHtml = `<p>Source pages: ${pageLinks.join(', ')}</p>`;
-      parsedContent += pagesHtml;
-    }
-
-    return parsedContent;
-  }
-
-  function generatePageLink(logicalPage) {
-    // Since pdfjs-lib is removed, use logicalPage directly
-    return `${selectedDocument.source_url}#page=${logicalPage}`;
-  }
-
-  function sanitizeURL(url) {
-    try {
-      const sanitizedUrl = new URL(url);
-      return sanitizedUrl.href;
-    } catch (_) {
-      console.error('Invalid URL:', url);
-      return '#';
-    }
-  }
-
-  function isValidUrl(string) {
-    try {
-      new URL(string);
-      return true;
-    } catch (_) {
-      return false;
-    }
+    const sanitizedContent = DOMPurify.sanitize(htmlContent);
+    // Return the sanitized HTML content
+    return sanitizedContent;
   }
 
   function typeAssistantMessage(message) {
@@ -275,9 +249,23 @@
 
     function typeCharacter() {
       if (index < fullText.length) {
-        // Append the next character
-        message.displayedText += fullText.charAt(index);
-        index++;
+        if (fullText[index] === '<') {
+          // Detect the start of an HTML tag
+          const endTagIndex = fullText.indexOf('>', index);
+          if (endTagIndex !== -1) {
+            // Append the entire tag at once
+            message.displayedText += fullText.slice(index, endTagIndex + 1);
+            index = endTagIndex + 1;
+          } else {
+            // Malformed tag; append the character and continue
+            message.displayedText += fullText[index];
+            index++;
+          }
+        } else {
+          // Append the next character
+          message.displayedText += fullText[index];
+          index++;
+        }
 
         // Update the messages array to trigger reactivity
         messages = [...messages];
@@ -466,6 +454,11 @@
 
   :global(.bot-message a:hover) {
     color: #104e8b; /* Darker blue on hover */
+  }
+
+  /* Ensure bot messages have the correct text color */
+  :global(.bot-message) {
+    color: #e5e7eb; /* Tailwind's text-gray-200 */
   }
 
   .spinner {

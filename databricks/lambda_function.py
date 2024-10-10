@@ -5,6 +5,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import awsgi
 import boto3
+import re
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -21,6 +22,8 @@ def lambda_handler(event, context):
 def chat():
     user_message = request.json.get('message', '')
     doc_id = request.json.get('documentId', '')
+    source_url = request.json.get('source_url', '')
+    
     if not user_message or not doc_id:
         return jsonify({"response": "Please select a document and provide a message."}), 400
     try:
@@ -31,27 +34,34 @@ def chat():
             return jsonify({"response": "No results found for the given query and document ID."}), 404
         
         # Unpack the array and prepare the context including page numbers
-        page_contents = [
-            f"\"{item['page_content']}\"" for item in search_results
-        ]
-        context = '\n'.join(page_contents)
-        
-        # Prepare a list of page numbers to include at the end
+        page_contents = [f"\"{item['page_content']}\"" for item in search_results]
         page_numbers = [str(int(item['page_number'])) for item in search_results]
-        pages = ', '.join(page_numbers)
         
+        content_with_pages = [
+            f"Page {page}: {content}" for content, page in zip(page_contents, page_numbers)
+        ]
+        context = '\n\n'.join(content_with_pages)
         # Generate a response from OpenAI
-        output = generate_completion(context=context, question=user_message, pages=pages)
+        output = generate_completion(context=context, question=user_message)
         
-        return jsonify({"response": output})
+        def replace_page_numbers(match):
+            pages_str = match.group(1)  # Extract the string containing page numbers
+            page_numbers = re.findall(r'\d+', pages_str)  # Find all page numbers
+            links = [f'<a href="{source_url}#page={page}">(Page {page})</a>' for page in page_numbers]
+            return ', '.join(links)
+
+        # Updated regex to capture multiple page numbers
+        html_output = re.sub(r'%&\(Pg\.([^)]+)\)', replace_page_numbers, output)
+
+        return jsonify({"response": html_output})
 
     except Exception as e:
         return jsonify({"response": f"An error occurred: {str(e)}"}), 500
 
 def vector_search(query, doc_id):
     vsc = DatabricksVectorSearch(
-        endpoint='document-endpoint',
-        index_name='us_policy.default.text2',
+        endpoint='uspolicy',
+        index_name='us_policy.default.vector_text',
     )
     # Apply a filter on 'document_id' during the similarity search
     results = vsc.similarity_search(
@@ -72,7 +82,7 @@ def vector_search(query, doc_id):
     
     return results_array
 
-def generate_completion(context, question, pages):
+def generate_completion(context, question):
     system_prompt = os.getenv('OPENAI_PROMPT_SYSTEM', '')
     if not system_prompt:
         raise ValueError("OPENAI_PROMPT_SYSTEM environment variable is not set.")
